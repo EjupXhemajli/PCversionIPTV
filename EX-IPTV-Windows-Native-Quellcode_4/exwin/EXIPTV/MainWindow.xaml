@@ -1,0 +1,425 @@
+<Window x:Class="EXIPTV.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vlc="clr-namespace:LibVLCSharp.WPF;assembly=LibVLCSharp.WPF"
+        Title="EX-IPTV" Height="820" Width="1360"
+        WindowStartupLocation="CenterScreen">
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="230" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- ===== Sidebar ===== -->
+        <Border Grid.Column="0" Background="{StaticResource BgPanel}">
+            <DockPanel>
+                <Image DockPanel.Dock="Top" Source="Assets/logo.png" Height="70"
+                       Margin="18,22,18,26" Stretch="Uniform" HorizontalAlignment="Left" />
+
+                <StackPanel DockPanel.Dock="Top">
+                    <RadioButton x:Name="NavHome"   Style="{StaticResource NavButton}" IsChecked="True"
+                                 Content="🏠  Start"        Checked="Nav_Checked" Tag="home" />
+                    <RadioButton x:Name="NavSearch" Style="{StaticResource NavButton}"
+                                 Content="🔍  Suche"        Checked="Nav_Checked" Tag="search" />
+                    <RadioButton x:Name="NavLive"   Style="{StaticResource NavButton}"
+                                 Content="📺  Live-TV"      Checked="Nav_Checked" Tag="live" />
+                    <RadioButton x:Name="NavMovies" Style="{StaticResource NavButton}"
+                                 Content="🎬  Filme"        Checked="Nav_Checked" Tag="movies" />
+                    <RadioButton x:Name="NavSeries" Style="{StaticResource NavButton}"
+                                 Content="🎞  Serien"       Checked="Nav_Checked" Tag="series" />
+                    <RadioButton x:Name="NavFav"    Style="{StaticResource NavButton}"
+                                 Content="⭐  Favoriten"    Checked="Nav_Checked" Tag="fav" />
+                </StackPanel>
+
+                <Button DockPanel.Dock="Bottom" Style="{StaticResource NavButton}"
+                        Content="⚙  Einstellungen" Click="OpenSettings_Click"
+                        Foreground="{StaticResource TextMuted}" HorizontalContentAlignment="Left"
+                        Margin="8,2,8,10" />
+                <TextBlock DockPanel.Dock="Bottom" x:Name="VersionText" Text="v3.0.0"
+                           Foreground="{StaticResource TextMuted}" FontSize="11"
+                           HorizontalAlignment="Center" Margin="0,0,0,6" />
+                <Grid />
+            </DockPanel>
+        </Border>
+
+        <!-- ===== Content ===== -->
+        <Grid Grid.Column="1">
+            <!-- Katalog-Ansichten (Kategorien + Liste) -->
+            <Grid x:Name="CatalogView">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="300" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Kategorien -->
+                <Border Grid.Column="0" Background="{StaticResource BgPanel}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0">
+                    <DockPanel>
+                        <TextBlock x:Name="CatTitle" DockPanel.Dock="Top" Text="Kategorien"
+                                   FontSize="18" FontWeight="SemiBold" Margin="18,18,18,10" />
+                        <ListBox x:Name="CategoryList" Background="Transparent" BorderThickness="0"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 SelectionChanged="Category_Selected"
+                                 VirtualizingStackPanel.IsVirtualizing="True"
+                                 VirtualizingStackPanel.VirtualizationMode="Recycling">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Padding" Value="16,10" />
+                                    <Setter Property="Margin" Value="6,1" />
+                                    <Setter Property="Foreground" Value="{StaticResource Text}" />
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ListBoxItem">
+                                                <Border x:Name="b" CornerRadius="8" Background="Transparent" Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter />
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="b" Property="Background" Value="{StaticResource BgHover}" />
+                                                    </Trigger>
+                                                    <Trigger Property="IsSelected" Value="True">
+                                                        <Setter TargetName="b" Property="Background" Value="{StaticResource Accent}" />
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Right" Text="{Binding Count}"
+                                                   Foreground="{StaticResource TextMuted}" FontSize="12" />
+                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+                </Border>
+
+                <!-- Rechte Seite: Header + Inhalt (Liste ODER Poster) -->
+                <DockPanel Grid.Column="1" Margin="0">
+                    <Grid DockPanel.Dock="Top" Margin="24,18,24,10">
+                        <TextBlock x:Name="ContentTitle" Text="Alle Filme" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <TextBlock x:Name="ContentCount" Text="" Foreground="{StaticResource TextMuted}"
+                                   HorizontalAlignment="Right" VerticalAlignment="Center" />
+                    </Grid>
+
+                    <!-- Live/Sender-Liste -->
+                    <ListBox x:Name="ItemList" Background="Transparent" BorderThickness="0" Margin="16,0,16,16"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             MouseDoubleClick="Item_Activate"
+                             VirtualizingStackPanel.IsVirtualizing="True"
+                             VirtualizingStackPanel.VirtualizationMode="Recycling">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Padding" Value="10,8" />
+                                <Setter Property="Margin" Value="4,1" />
+                                <Setter Property="Foreground" Value="{StaticResource Text}" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <Border x:Name="b" CornerRadius="8" Background="Transparent" Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter />
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="b" Property="Background" Value="{StaticResource BgHover}" />
+                                                </Trigger>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter TargetName="b" Property="Background" Value="{StaticResource BgCard}" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Left" Width="44" Height="44" CornerRadius="6"
+                                            Background="{StaticResource BgCard}" Margin="0,0,12,0">
+                                        <Image Source="{Binding Logo}" Stretch="Uniform" />
+                                    </Border>
+                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis" FontSize="14" />
+                                </DockPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Grid>
+
+            <!-- Poster-Grid (Filme/Serien) – überlagert die Liste -->
+            <Grid x:Name="PosterView" Visibility="Collapsed">
+                <DockPanel>
+                    <Grid DockPanel.Dock="Top" Margin="24,18,24,10">
+                        <Button Content="‹ Kategorien" Style="{StaticResource GhostButton}"
+                                HorizontalAlignment="Left" Click="BackToCategories_Click" />
+                        <TextBlock x:Name="PosterTitle" Text="" FontSize="18" FontWeight="SemiBold"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Grid>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="16,0,8,16">
+                        <ListBox x:Name="PosterList" Background="Transparent" BorderThickness="0"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 MouseDoubleClick="Poster_Activate"
+                                 VirtualizingStackPanel.IsVirtualizing="True"
+                                 VirtualizingStackPanel.VirtualizationMode="Recycling"
+                                 VirtualizingStackPanel.ScrollUnit="Pixel">
+                            <ListBox.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ListBox.ItemsPanel>
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Margin" Value="8" />
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ListBoxItem">
+                                                <ContentPresenter />
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Width="150" Cursor="Hand">
+                                        <Border Width="150" Height="225" CornerRadius="10" Background="{StaticResource BgCard}">
+                                            <Image Source="{Binding Logo}" Stretch="UniformToFill" />
+                                        </Border>
+                                        <TextBlock Text="{Binding Name}" FontSize="12" Margin="2,6,2,0"
+                                                   TextTrimming="CharacterEllipsis" MaxHeight="34" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </ScrollViewer>
+                </DockPanel>
+            </Grid>
+
+            <!-- Start-Ansicht -->
+            <ScrollViewer x:Name="HomeView" VerticalScrollBarVisibility="Auto" Visibility="Collapsed">
+                <StackPanel Margin="32,28">
+                    <TextBlock Text="Willkommen bei EX-IPTV" FontSize="26" FontWeight="Bold" />
+                    <TextBlock x:Name="HomeSubtitle" Text="" Foreground="{StaticResource TextMuted}" Margin="0,6,0,24" FontSize="14" />
+
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,28">
+                        <Button Content="📺  Live-TV öffnen" Style="{StaticResource PrimaryButton}" Margin="0,0,12,0" Click="QuickLive_Click" />
+                        <Button Content="🎬  Filme öffnen"   Style="{StaticResource GhostButton}"  Margin="0,0,12,0" Click="QuickMovies_Click" />
+                        <Button Content="🎞  Serien öffnen"  Style="{StaticResource GhostButton}"  Click="QuickSeries_Click" />
+                    </StackPanel>
+
+                    <TextBlock Text="Neu hinzugefügte Filme" FontSize="18" FontWeight="SemiBold" Margin="0,0,0,12" />
+                    <ListBox x:Name="HomeNewMovies" Background="Transparent" BorderThickness="0"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             MouseDoubleClick="Poster_Activate">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Margin" Value="7" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem"><ContentPresenter /></ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Width="140" Cursor="Hand">
+                                    <Border Width="140" Height="210" CornerRadius="10" Background="{StaticResource BgCard}">
+                                        <Image Source="{Binding Logo}" Stretch="UniformToFill" />
+                                    </Border>
+                                    <TextBlock Text="{Binding Name}" FontSize="12" Margin="2,6,2,0"
+                                               TextTrimming="CharacterEllipsis" MaxHeight="34" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Suche -->
+            <Grid x:Name="SearchView" Visibility="Collapsed">
+                <DockPanel Margin="24,18">
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,14">
+                        <Button DockPanel.Dock="Right" Content="Suchen" Style="{StaticResource PrimaryButton}"
+                                Margin="10,0,0,0" Click="DoSearch_Click" />
+                        <TextBox x:Name="SearchBox" KeyDown="SearchBox_KeyDown" />
+                    </DockPanel>
+                    <ListBox x:Name="SearchResults" Background="Transparent" BorderThickness="0"
+                             MouseDoubleClick="Item_Activate"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Padding" Value="10,8" />
+                                <Setter Property="Foreground" Value="{StaticResource Text}" />
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <DockPanel>
+                                    <Border DockPanel.Dock="Left" Width="40" Height="40" CornerRadius="6"
+                                            Background="{StaticResource BgCard}" Margin="0,0,12,0">
+                                        <Image Source="{Binding Logo}" Stretch="Uniform" />
+                                    </Border>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Name}" FontSize="14" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Group}" FontSize="11" Foreground="{StaticResource TextMuted}" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Grid>
+        </Grid>
+
+        <!-- ===== Player-Overlay (Vollbild über allem) ===== -->
+        <Grid x:Name="PlayerOverlay" Grid.ColumnSpan="2" Background="Black" Visibility="Collapsed">
+            <vlc:VideoView x:Name="VideoView" />
+            <!-- Kopfzeile -->
+            <Border VerticalAlignment="Top" Height="56" Background="#CC000000">
+                <DockPanel Margin="16,0">
+                    <Button DockPanel.Dock="Left" Content="‹ Zurück" Style="{StaticResource GhostButton}"
+                            VerticalAlignment="Center" Click="ClosePlayer_Click" />
+                    <TextBlock x:Name="NowPlaying" Text="" VerticalAlignment="Center" Margin="16,0"
+                               FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                </DockPanel>
+            </Border>
+            <!-- Statusanzeige (Puffern) -->
+            <Border x:Name="PlayerStatus" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="#AA000000" CornerRadius="10" Padding="20,12" Visibility="Collapsed">
+                <TextBlock x:Name="PlayerStatusText" Text="" FontSize="15" />
+            </Border>
+            <!-- Steuerleiste -->
+            <Border VerticalAlignment="Bottom" Height="60" Background="#CC000000">
+                <DockPanel Margin="18,0" LastChildFill="False">
+                    <Button DockPanel.Dock="Left" x:Name="PauseBtn" Content="⏸" FontSize="18"
+                            Style="{StaticResource GhostButton}" VerticalAlignment="Center" Click="Pause_Click" />
+                    <TextBlock DockPanel.Dock="Right" Text="🔊" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <Slider DockPanel.Dock="Right" x:Name="VolumeSlider" Width="140" Minimum="0" Maximum="100"
+                            Value="90" VerticalAlignment="Center" ValueChanged="Volume_Changed" />
+                </DockPanel>
+            </Border>
+        </Grid>
+
+        <!-- ===== Einstellungen-Dialog ===== -->
+        <Grid x:Name="SettingsOverlay" Grid.ColumnSpan="2" Background="#AA000000" Visibility="Collapsed">
+            <Border Width="720" MaxHeight="640" Background="{StaticResource BgPanel}" CornerRadius="14"
+                    BorderBrush="{StaticResource Line}" BorderThickness="1">
+                <DockPanel Margin="26">
+                    <Grid DockPanel.Dock="Top" Margin="0,0,0,18">
+                        <TextBlock Text="Einstellungen" FontSize="20" FontWeight="Bold" VerticalAlignment="Center" />
+                        <Button Content="✕" Style="{StaticResource GhostButton}" HorizontalAlignment="Right"
+                                Click="CloseSettings_Click" />
+                    </Grid>
+
+                    <StackPanel DockPanel.Dock="Bottom" Margin="0,16,0,0">
+                        <TextBlock Text="Wiedergabe-Puffer" FontWeight="SemiBold" Margin="0,10,0,6" />
+                        <DockPanel>
+                            <TextBlock DockPanel.Dock="Right" x:Name="BufferLabel" Text="2000 ms"
+                                       Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Width="70" TextAlignment="Right" />
+                            <Slider x:Name="BufferSlider" Minimum="500" Maximum="8000" Value="2000"
+                                    TickFrequency="500" IsSnapToTickEnabled="True" ValueChanged="Buffer_Changed" />
+                        </DockPanel>
+                    </StackPanel>
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <DockPanel Margin="0,0,0,12">
+                                <TextBlock Text="Playlists" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                <Button DockPanel.Dock="Right" Content="+ Playlist hinzufügen"
+                                        Style="{StaticResource PrimaryButton}" HorizontalAlignment="Right"
+                                        Click="AddPlaylist_Click" />
+                            </DockPanel>
+                            <ItemsControl x:Name="PlaylistItems">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{StaticResource BgCard}" CornerRadius="10" Padding="14,12" Margin="0,0,0,10">
+                                            <DockPanel>
+                                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Border x:Name="StatusBadge" CornerRadius="6" Padding="8,3" Margin="0,0,8,0"
+                                                            Background="{StaticResource BgHover}">
+                                                        <TextBlock Text="{Binding Status}" FontSize="11" />
+                                                    </Border>
+                                                    <Button Content="↻" Style="{StaticResource GhostButton}" Margin="0,0,6,0"
+                                                            Tag="{Binding Id}" Click="ReloadPlaylist_Click" ToolTip="Neu laden" />
+                                                    <Button Content="✎" Style="{StaticResource GhostButton}" Margin="0,0,6,0"
+                                                            Tag="{Binding Id}" Click="EditPlaylist_Click" ToolTip="Bearbeiten" />
+                                                    <Button Content="✕" Style="{StaticResource GhostButton}"
+                                                            Tag="{Binding Id}" Click="DeletePlaylist_Click" ToolTip="Entfernen" />
+                                                </StackPanel>
+                                                <StackPanel VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" />
+                                                    <TextBlock FontSize="12" Foreground="{StaticResource TextMuted}">
+                                                        <Run Text="{Binding Type, Mode=OneWay}" />
+                                                        <Run Text=" · " /><Run Text="{Binding LiveCount, Mode=OneWay}" /><Run Text=" Sender" />
+                                                        <Run Text=" · " /><Run Text="{Binding MovieCount, Mode=OneWay}" /><Run Text=" Filme" />
+                                                        <Run Text=" · " /><Run Text="{Binding SeriesCount, Mode=OneWay}" /><Run Text=" Serien" />
+                                                    </TextBlock>
+                                                    <TextBlock Text="{Binding LastError}" FontSize="11" Foreground="{StaticResource Danger}"
+                                                               TextWrapping="Wrap" MaxWidth="420" HorizontalAlignment="Left"
+                                                               Visibility="{Binding LastError, Converter={StaticResource EmptyToCollapsed}}" />
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+        </Grid>
+
+        <!-- ===== Playlist-hinzufügen/bearbeiten-Dialog ===== -->
+        <Grid x:Name="EditOverlay" Grid.ColumnSpan="2" Background="#CC000000" Visibility="Collapsed">
+            <Border Width="480" Background="{StaticResource BgPanel}" CornerRadius="14"
+                    BorderBrush="{StaticResource Line}" BorderThickness="1">
+                <StackPanel Margin="26">
+                    <TextBlock x:Name="EditTitle" Text="Playlist hinzufügen" FontSize="19" FontWeight="Bold" Margin="0,0,0,18" />
+
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                        <RadioButton x:Name="TypeXtream" Content="Xtream Codes" IsChecked="True"
+                                     Foreground="{StaticResource Text}" Margin="0,0,20,0" Checked="TypeChanged" />
+                        <RadioButton x:Name="TypeM3u" Content="M3U-Link"
+                                     Foreground="{StaticResource Text}" Checked="TypeChanged" />
+                    </StackPanel>
+
+                    <TextBlock Text="Name" Foreground="{StaticResource TextMuted}" Margin="0,0,0,4" />
+                    <TextBox x:Name="EName" Margin="0,0,0,12" />
+
+                    <StackPanel x:Name="XtreamFields">
+                        <TextBlock Text="Server-URL" Foreground="{StaticResource TextMuted}" Margin="0,0,0,4" />
+                        <TextBox x:Name="EServer" Margin="0,0,0,12" />
+                        <TextBlock Text="Benutzername" Foreground="{StaticResource TextMuted}" Margin="0,0,0,4" />
+                        <TextBox x:Name="EUser" Margin="0,0,0,12" />
+                        <TextBlock Text="Passwort" Foreground="{StaticResource TextMuted}" Margin="0,0,0,4" />
+                        <PasswordBox x:Name="EPass" Margin="0,0,0,12" />
+                    </StackPanel>
+
+                    <StackPanel x:Name="M3uFields" Visibility="Collapsed">
+                        <TextBlock Text="M3U-/M3U8-Link" Foreground="{StaticResource TextMuted}" Margin="0,0,0,4" />
+                        <TextBox x:Name="EUrl" Margin="0,0,0,12" />
+                    </StackPanel>
+
+                    <TextBlock x:Name="EditError" Text="" Foreground="{StaticResource Danger}" FontSize="12"
+                               Margin="0,0,0,10" TextWrapping="Wrap" Visibility="Collapsed" />
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0">
+                        <Button Content="Abbrechen" Style="{StaticResource GhostButton}" Margin="0,0,10,0" Click="CancelEdit_Click" />
+                        <Button x:Name="SaveEditBtn" Content="Speichern" Style="{StaticResource PrimaryButton}" Click="SaveEdit_Click" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>
