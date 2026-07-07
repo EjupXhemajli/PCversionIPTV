@@ -1,0 +1,54 @@
+name: Build EX-IPTV (Windows)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore EXIPTV.sln
+
+      # WICHTIG: KEIN PublishSingleFile - LibVLC braucht seine nativen DLLs +
+      # plugins-Ordner an einem echten Pfad neben der EXE, sonst startet die App nicht.
+      - name: Publish (self-contained Ordner)
+        run: >
+          dotnet publish EXIPTV/EXIPTV.csproj -c Release -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=false
+          -o publish
+
+      - name: ZIP packen
+        run: Compress-Archive -Path publish/* -DestinationPath EX-IPTV-win-x64.zip -Force
+
+      - name: Upload App (ZIP, sofort lauffähig)
+        uses: actions/upload-artifact@v4
+        with:
+          name: EX-IPTV-win-x64
+          path: EX-IPTV-win-x64.zip
+
+      # Optionaler Installer (schlägt der Schritt fehl, bleibt das ZIP oben nutzbar)
+      - name: Inno Setup installieren
+        continue-on-error: true
+        run: choco install innosetup -y --no-progress
+
+      - name: Installer bauen
+        continue-on-error: true
+        run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss'
+
+      - name: Upload Installer
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: EX-IPTV-Setup
+          path: Output/EX-IPTV-Setup.exe
