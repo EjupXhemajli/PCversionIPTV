@@ -1,0 +1,75 @@
+name: Build Windows Installer
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'EX-IPTV-Windows-Native-Quellcode_4/**'
+      - '.github/workflows/build-release.yml'
+  workflow_dispatch: {}   # manueller Start über den "Run workflow"-Button
+
+env:
+  PROJECT_DIR: EX-IPTV-Windows-Native-Quellcode_4/exwin
+  SOLUTION_FILE: EX-IPTV-Windows-Native-Quellcode_4/exwin/EXIPTV.sln
+  MAIN_PROJECT: EX-IPTV-Windows-Native-Quellcode_4/exwin/EXIPTV/EXIPTV.csproj
+  INSTALLER_SCRIPT: EX-IPTV-Windows-Native-Quellcode_4/exwin/installer.iss
+  PUBLISH_DIR: EX-IPTV-Windows-Native-Quellcode_4/exwin/EXIPTV/bin/Release/net8.0-windows/win-x64/publish
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Code auschecken
+        uses: actions/checkout@v4
+
+      - name: .NET 8 SDK einrichten
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: NuGet-Pakete wiederherstellen
+        run: dotnet restore "${{ env.SOLUTION_FILE }}"
+
+      - name: App publishen (win-x64, Release)
+        run: >
+          dotnet publish "${{ env.MAIN_PROJECT }}"
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=false
+          -o "${{ env.PUBLISH_DIR }}"
+
+      - name: Inno Setup installieren
+        run: choco install innosetup -y --no-progress
+
+      - name: Installer bauen (ISCC)
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "${{ env.INSTALLER_SCRIPT }}"
+        shell: pwsh
+
+      - name: Installer-Datei finden
+        id: find_installer
+        run: |
+          $file = Get-ChildItem -Path "${{ env.PROJECT_DIR }}" -Recurse -Filter "*.exe" |
+                  Where-Object { $_.Name -match "Setup|Installer" } |
+                  Select-Object -First 1
+          echo "installer_path=$($file.FullName)" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      - name: Installer als Artefakt hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: EXIPTV-Setup
+          path: ${{ steps.find_installer.outputs.installer_path }}
+
+      # Optional: automatisch ein GitHub-Release mit der .exe erstellen
+      - name: GitHub Release erstellen
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: EXIPTV Build ${{ github.run_number }}
+          files: ${{ steps.find_installer.outputs.installer_path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
